@@ -1,0 +1,65 @@
+stages:
+- build
+
+variables:
+  DCR_REGISTRY: registry.crplab.ru
+  DCR_IMAGE_NAME: gis/base-application
+  DCR_IMAGE_TAG: latest
+  TAGRELEASE_URL: https://github.com/dikderoy/tagrelease/releases/download/v2.0.0/tagrelease-linux-amd64
+
+cache:
+  paths:
+  - tagrelease
+
+before_script:
+- docker info
+- apk add --no-cache git
+- if [ ! -f tagrelease ]; then wget -O tagrelease $TAGRELEASE_URL && chmod +x tagrelease; fi
+
+create_image:
+  stage: build
+  only:
+  - master
+  - tags
+
+  image: docker:stable
+  script:
+  - DCR_IMAGE_VTAG=`./tagrelease -i patch -e -`
+  - DCR_FIN="$DCR_REGISTRY/$DCR_IMAGE_NAME:$DCR_IMAGE_TAG"
+  - DCR_VFIN="$DCR_REGISTRY/$DCR_IMAGE_NAME:$DCR_IMAGE_VTAG"
+  - echo $DCR_VFIN
+
+  - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $DCR_REGISTRY
+  - docker build -t $DCR_FIN --build-arg PLATFORM_VERSION=$(./tagrelease) -f docker/base-application/Dockerfile .
+  - docker tag $DCR_FIN $DCR_VFIN
+  - docker push $DCR_FIN
+  - docker push $DCR_VFIN
+
+create_supervised_image:
+  stage: build
+  only:
+  - master
+  - tags
+
+  image: docker:stable
+  variables:
+    DCR_IMAGE_NAME: gis/base-application/supervised
+    SPV_VERSION: 0.1.4
+  script:
+  - DCR_IMAGE_VTAG=`./tagrelease -i patch -e -`
+  - DCR_FIN="$DCR_REGISTRY/$DCR_IMAGE_NAME:$DCR_IMAGE_TAG"
+  - DCR_VFIN="$DCR_REGISTRY/$DCR_IMAGE_NAME:$DCR_IMAGE_VTAG"
+  - echo $DCR_VFIN
+
+  - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $DCR_REGISTRY
+  - >-
+    docker build -t $DCR_FIN
+    --build-arg PLATFORM_VERSION=$(./tagrelease)
+    --build-arg ART_USER=$ARTIFACTORY_USER
+    --build-arg ART_PASS=$ARTIFACTORY_PASS
+    --build-arg SPV_VERSION=$SPV_VERSION
+    -f docker/base-application/Supervised.Dockerfile .
+
+  - docker tag $DCR_FIN $DCR_VFIN
+  - docker push $DCR_FIN
+  - docker push $DCR_VFIN

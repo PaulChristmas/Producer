@@ -1,0 +1,12 @@
+version: '3'
+services:
+  base-application:
+    build:
+      context: .
+      dockerfile: docker/base-application/Dockerfile
+    environment:
+      OUTPUT_PATH_KEY: "cef_json"
+      MEMORY_LIMITS:  "-Xmx256m -Xss128m"
+    stdin_open: true
+    tty: true
+    restart: always
